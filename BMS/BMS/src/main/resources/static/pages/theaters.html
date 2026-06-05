@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Theaters - BookMyShow</title>
+
+  <link rel="stylesheet" href="../css/style.css">
+
+
+  <style>
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 12, 20, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
+/* hide modal */
+.hidden {
+  display: none;
+}
+
+/* ===== POPUP BOX (THEMED ONLY CHANGE) ===== */
+.modal-box {
+  width: 420px;
+  max-width: 90%;
+  background: #2b2f3f;   /* dark popup */
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ===== HEADER ===== */
+.modal-header {
+  background: #1f2230;
+  color: #fff;
+  padding: 12px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #ff3d71;
+}
+
+/* close button */
+.close-btn {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.close-btn:hover {
+  color: #ff3d71;
+}
+
+/* ===== CONTENT ===== */
+.modal-content {
+  padding: 14px;
+  color: #ffffff;
+}
+
+/* ===== SCREEN ITEM ===== */
+.screen-item {
+  background: #353a50;
+  border-left: 4px solid #ff3d71;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  transition: 0.2s;
+}
+
+.screen-item:hover {
+  background: #40465f;
+  transform: translateX(2px);
+}
+
+.screen-item strong {
+  display: block;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.screen-item span {
+  font-size: 13px;
+  color: #c7c7c7;
+}
+  </style>
+</head>
+
+<body>
+
+
+<nav class="navbar">
+  <a href="../index.html" class="logo">Book<span>My</span>Show</a>
+  <div class="nav-links">
+    <a href="../index.html">Home</a>
+    <a href="movies.html">Movies</a>
+    <a href="theaters.html" class="active">Theaters</a>
+    <a href="bookings.html">My Bookings</a>
+    <a href="admin.html">Admin</a>
+  </div>
+  <div class="nav-user" id="nav-user"></div>
+</nav>
+
+<div class="container">
+  <h2 class="section-title">Theaters</h2>
+
+  <!-- CITY FILTER (UNCHANGED) -->
+  <div class="city-bar" id="city-bar">
+    <button class="city-chip active" onclick="loadTheaters(); activateChip(this)">
+      All Cities
+    </button>
+  </div>
+
+  <!-- GRID -->
+  <div class="grid grid-3" id="theaters-grid"></div>
+</div>
+
+
+<div id="screens-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="modal-title">Screens</h3>
+      <button class="close-btn" onclick="closeModal()">✖</button>
+    </div>
+
+    <div id="screens-content" class="modal-content"></div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/utils.js"></script>
+
+<script>
+
+  async function loadCities() {
+    try {
+      const cities = await CityAPI.getAll();
+      const bar = document.getElementById('city-bar');
+
+      cities.forEach(city => {
+        const chip = document.createElement('button');
+        chip.className = 'city-chip';
+        chip.textContent = city.name;
+
+        chip.onclick = () => {
+          activateChip(chip);
+          loadTheatersByCity(city.id);
+        };
+
+        bar.appendChild(chip);
+      });
+
+    } catch (e) {
+      console.log('No cities');
+    }
+  }
+
+  function activateChip(el) {
+    document.querySelectorAll('.city-chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  async function loadTheaters() {
+    try {
+      const theaters = await TheaterAPI.getAll();
+      renderTheaters(theaters);
+    } catch (e) {
+      showEmpty('theaters-grid', 'Could not load theaters');
+    }
+  }
+
+  async function loadTheatersByCity(cityId) {
+    try {
+      const theaters = await TheaterAPI.getByCity(cityId);
+      renderTheaters(theaters);
+    } catch (e) {
+      showEmpty('theaters-grid', 'No theaters in this city');
+    }
+  }
+
+  function renderTheaters(theaters) {
+    const grid = document.getElementById('theaters-grid');
+
+    if (!theaters || theaters.length === 0) {
+      showEmpty('theaters-grid', 'No theaters found');
+      return;
+    }
+
+    grid.innerHTML = theaters.map(t => `
+      <div class="card">
+        <div class="card-body">
+          <h3>🏛️ ${t.name}</h3>
+          <p>📍 ${t.address || 'N/A'}</p>
+          <p>🌆 ${t.city?.name || ''} ${t.city?.state ? ', ' + t.city.state : ''}</p>
+        </div>
+
+        <div class="card-footer">
+          <button class="btn btn-outline"
+            onclick="viewScreens(${t.id}, '${t.name}')">
+            View Screens
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function viewScreens(theaterId, theaterName) {
+    try {
+      const screens = await ScreenAPI.getByTheater(theaterId);
+
+      const modal = document.getElementById('screens-modal');
+      const content = document.getElementById('screens-content');
+      const title = document.getElementById('modal-title');
+
+      title.textContent = `${theaterName} - Screens`;
+
+      if (!screens || screens.length === 0) {
+        content.innerHTML = "<p>No screens found</p>";
+      } else {
+        content.innerHTML = screens.map(s => `
+          <div class="screen-item">
+            <strong>🎬 ${s.name}</strong>
+            <span>Seats: ${s.totalSeats || 'N/A'}</span>
+          </div>
+        `).join('');
+      }
+
+      modal.classList.remove('hidden');
+
+    } catch (e) {
+      showToast('Could not load screens', 'error');
+    }
+  }
+
+  function closeModal() {
+    document.getElementById('screens-modal').classList.add('hidden');
+  }
+
+  loadCities();
+  loadTheaters();
+
+</script>
+
+</body>
+</html>
